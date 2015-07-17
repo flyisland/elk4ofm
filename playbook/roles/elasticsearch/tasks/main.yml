@@ -4,3 +4,17 @@
 
 - include: elastic.yml
   when: not elastic_home_dir.stat.exists
+
+- name: set elastic's cluster name
+  lineinfile:
+    dest: "{{ elastic_home }}/config/elasticsearch.yml"
+    regexp: "^#?cluster.name"
+    line: "cluster.name: elk4ofm"
+
+- name: start elastic search
+  shell: "nohup ./bin/elasticsearch > nohup.txt 2>&1 &"
+  args:
+    chdir: "{{ elastic_home }}"
+  environment:
+    JAVA_HOME: "{{ java_home }}"
+  # sudo_user: "{{ elk_user }}"

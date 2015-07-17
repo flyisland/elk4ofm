@@ -12,7 +12,7 @@ Vagrant.configure(2) do |config|
     elk.vm.box = "centos65_virtualbox_50G"
     elk.vm.hostname = "elk.example.com"
     elk.vm.synced_folder "R:/", "/ramdisk"
-    elk.vm.synced_folder "R:/", "/software"
+    elk.vm.synced_folder "E:/Temp/Install", "/software"
 
     elk.vm.network :private_network, ip: "10.10.10.10"
   end
