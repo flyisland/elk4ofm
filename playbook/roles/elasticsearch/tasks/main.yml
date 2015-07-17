@@ -1,0 +1,6 @@
+---
+- stat: path="{{ elastic_home }}"
+  register: elastic_home_dir
+
+- include: elastic.yml
+  when: not elastic_home_dir.stat.exists

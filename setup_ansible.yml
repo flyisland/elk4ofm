@@ -1,0 +1,34 @@
+---
+- hosts: localhost
+  sudo: yes
+  gather_facts: no
+  vars:
+    user_home: /home/vagrant
+    ansible_files: "{{ user_home }}/ansible_files"
+  tasks:
+    - name: make sure known_hosts file is present
+      file:
+        path: "{{ user_home }}/.ssh/known_hosts"
+        mode: 0664
+        owner: vagrant
+        group: vagrant
+        state: touch
+
+    - name: create ansible_files directory
+      file:
+        path: "{{ ansible_files }}"
+        owner: vagrant
+        group: vagrant
+        state: directory
+
+    - name: set alias
+      lineinfile:
+        dest: "{{ user_home }}/.bashrc"
+        regexp: "^alias ap="
+        line: "alias ap='ansible-playbook -v'"
+
+    - name: set ansible plugin path
+      lineinfile:
+        dest: "/etc/ansible/ansible.cfg"
+        regexp: "^callback_plugins"
+        line: "callback_plugins = /usr/share/ansible_plugins/callback_plugins:/vagrant/playbooks/plugins/callback_plugins/"

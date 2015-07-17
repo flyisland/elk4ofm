@@ -1,0 +1,6 @@
+---
+- stat: path="{{ kibana_home }}"
+  register: kibana_home_dir
+
+- include: kibana.yml
+  when: not kibana_home_dir.stat.exists

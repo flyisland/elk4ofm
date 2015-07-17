@@ -1,0 +1,7 @@
+- name: Unarchive the kibana file
+  unarchive:
+    src: "{{ kibana_file }}"
+    dest: "{{ elk_base_path }}"
+    copy: no
+    owner: "{{ elk_user }}"
+    group: "{{ elk_group }}"

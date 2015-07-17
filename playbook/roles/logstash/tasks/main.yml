@@ -1,0 +1,6 @@
+---
+- stat: path="{{ logstash_home }}"
+  register: logstash_home_dir
+
+- include: logstash.yml
+  when: not logstash_home_dir.stat.exists

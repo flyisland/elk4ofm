@@ -1,0 +1,356 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" dir="ltr">
+  <head>
+    <title>Indexing and searching Weblogic logs using Logstash, Elasticsearch and Kibana</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <base href="https://kuther.net" />
+    <link type="text/css" rel="stylesheet" href="misc/print.css" />
+      </head>
+  <body>
+              <div class="section-1">
+              <div id="node-115" class="section-2">
+  <h1 class="book-heading">Indexing and searching Weblogic logs using Logstash, Elasticsearch and Kibana</h1>
+  <div class="field field-name-body field-type-text-with-summary field-label-hidden"><div class="field-items"><div class="field-item even"><p>This is a re-edit of my previous post <a href="https://kuther.net/blog/indexing-and-searching-weblogic-logs-using-logstash-and-graylog2">"<span style="line-height: 20px;">Indexing and searching Weblogic logs using Logstash and Graylog2"</span></a>. Meanwhile our setup has settled to use Kibana instead of the Graylog2 frontend. This Howto is meant to be a complete installation guide for <a href="http://www.elasticsearch.org/overview/">"The Elasticsearch ELK stack"</a> and using it to index tons of Weblogic server and application logs, from DEV over UA to the Production environment.</p>
+<a name="top" class="toc-filter-top"></a><div class="toc-filter toc-filter-number"><div class="toc-filter-content"><h3>Contents</h3><ol class="toc-filter-links"><li class="first"><a href="#architecture-overview">Architecture overview</a></li>
+<li><a href="#software-hardware-used">Software/Hardware used</a></li>
+<li><a href="#installing-required-packages">Installing required packages</a></li>
+<li><a href="#configure-elasticsearch">Configure Elasticsearch</a></li>
+<li><a href="#configure-redis">Configure Redis</a></li>
+<li><a href="#-span-style-font-size-1em-line-height-1-5385-configure-logstash-span-">Configure Logstash</a></li>
+<li><a href="#configure-kibana">Configure Kibana</a></li>
+<li><a href="#start-the-show">Start the show</a></li>
+<li class="last"><a href="#housekeeping">Housekeeping</a></li>
+</ol></div></div>
+<div class="toc-filter-back-to-top first"><a href="#top">Back to top</a></div><h2 class="toc-header toc-header-number"><a name="architecture-overview" id="architecture-overview" class="toc-bookmark" rel="bookmark" title="Architecture overview"></a><span class="toc-number">1.  </span> Architecture overview</h2>
+<p>The common centralized setup consists of</p>
+<ul><li>a <em>log shipper</em> that reads in the logs and forwards them without any big parsing</li>
+<li>a <em>message queue</em> that temporarily stores the events</li>
+<li>one or more <em>indexers </em>that pull the events from the queue, parse them, enrich them with metadata (fields, tags, types) and store them in..</li>
+<li>an Elasticsearch cluster</li>
+<li>and Kibana as a frontend to search, analyze and report on the events</li>
+</ul><p>We decided to use SSHFS mounts and a single logstash instance with <code>file input -&gt; multiline filter -&gt; redis output</code> as the <em>shipper</em>. Then a bunch of logstash <em>indexer</em> instances that do <code>redis input -&gt; filters gallore -&gt; elasticsearch_http output</code>.</p>
+<p>SSHFS and file input because it was the easiest to get up'n'running, with administrative SSH access to the UA and production machines already being in place. An alternative (and most likely more elegant) approach would be to run logstash-forwarder instances on all machines, or in case of JAVA apps: logstash with log4j input in server mode.</p>
+<p>Regarding performance, the file-to-redis shipper instance isn't really CPU intensive, as the only filter here is the multiline filter - no grok parsing, field extraction whatsoever. The latter is the job for the indexer instances which are horizontally scaled across both machines. We index about 3 million log entries a day summing up to around 5GB index data per ES cluster node. So actually our setup is a quite small one.</p>
+<p>Regarding availabilty, that file-to-redis instance is a single point of complete failure, for sure. We wrote some cron scripts to check if the logstash instances are up and start them if they are not. The file input uses a sincedb so it remebers where it stopped indexing a file, which is ensurance enough.</p>
+<p>So, our stack looks like &lt;TODO: insert picture here&gt; :-)</p>
+<p>This is by no means a general recommendation to do it the same way. I just describe how we did it, and it should serve as an example (if it's a good or a bad one heavily depends on your own situation/budget/requirements and so on). <u><em>The heart-piece of this guide should be how to get those Weblogic server and application logs in there</em></u>.</p>
+<div class="toc-filter-back-to-top"><a href="#top">Back to top</a></div><h2 class="toc-header toc-header-number"><a name="software-hardware-used" id="software-hardware-used" class="toc-bookmark" rel="bookmark" title="Software/Hardware used"></a><span class="toc-number">2.  </span> Software/Hardware used</h2>
+<ul><li>2 quad-core servers with 32GB RAM each</li>
+<li>currently 2TB of iSCSI attached SAN for the index data</li>
+<li>RHEL 6 x86_64</li>
+<li>Elasticsearch 0.90.11</li>
+<li>Redis 2.8.4</li>
+<li>Logstash 1.3.3</li>
+<li>Kibana3 latest</li>
+</ul><div class="toc-filter-back-to-top"><a href="#top">Back to top</a></div><h2 class="toc-header toc-header-number"><a name="installing-required-packages" id="installing-required-packages" class="toc-bookmark" rel="bookmark" title="Installing required packages"></a><span class="toc-number">3.  </span> Installing required packages</h2>
+<p>For CentOS/RHEL 6 following repositories provide most of the required Packages: <a href="http://rpms.famillecollet.com/">remi</a> (for redis) and <a href="http://www.elasticsearch.org/blog/apt-and-yum-repositories/">elasticsearch</a> (for elasticsearch). There is also a repo for logstash, but we use multiple logstash instances on each host and maintain the config in Git, and I haven't played with the RPM install yet. Please refer to the linked pages on how to add the repos for yum.</p>
+<p>Then install the required stuff on both server nodes (for httpd and kibana actually one server is enough, you could also install it on a separate machine)</p>
+<h3>Elasticsearch and Redis</h3>
+<pre>
+$ yum install elasticsearch redis httpd</pre><h3>Logstash</h3>
+<pre>
+$ mkdir /opt/logstash &amp;&amp; cd $_
+$ wget http://download.elasticsearch.org/logstash/logstash/logstash-1.3.3-flatjar.jar
+$ ln -s logstash-1.3.3-flatjar.jar logstash.jar
+$ mkdir {etc,log,patterns,es-templates}</pre><h3>Kibana</h3>
+<p>Download the latest version from elasticsearch.org and extract it somewhere so the webserver can access it.</p>
+<h3>JDK 1.7</h3>
+<p>It's best to use a recent Oracle 1.7 JDK, so d<span style="font-size: 1em; line-height: 1.5385;">ownload and install the rpm package from oracle.com. Then run</span></p>
+<pre>
+$ alternatives --install /usr/bin/java java /usr/java/latest/bin/java 2000
+$ alternatives --config java  # select /usr/java/latest/bin/java
+$ java -version  # verify it works</pre><div class="toc-filter-back-to-top"><a href="#top">Back to top</a></div><h2 class="toc-header toc-header-number"><a name="configure-elasticsearch" id="configure-elasticsearch" class="toc-bookmark" rel="bookmark" title="Configure Elasticsearch"></a><span class="toc-number">4.  </span> Configure Elasticsearch</h2>
+<ul><li>Edit <code>/etc/sysconfig/elasticsearch</code> and set a reasonable amount of ES_HEAP (about 1/3 of physical memory, 12g here)</li>
+<li><span style="font-size: 1em; line-height: 1.5385;">Edit <code>/etc/elasticsearch/elasticsearch.yml</code> and give your cluster a name</span></li>
+</ul><div class="toc-filter-back-to-top"><a href="#top">Back to top</a></div><h2 class="toc-header toc-header-number"><a name="configure-redis" id="configure-redis" class="toc-bookmark" rel="bookmark" title="Configure Redis"></a><span class="toc-number">5.  </span> Configure Redis</h2>
+<p><span style="font-size: 1em; line-height: 1.5385;">Edit <code>/etc/redis.conf</code> and comment out/delete the <var>Bind 127.0.0.1</var> so the logstash instances on both hosts are able to connect to it (poor man's cluster failover, a true redis-cluster is still in the works)</span></p>
+<div class="toc-filter-back-to-top"><a href="#top">Back to top</a></div><h2 class="toc-header toc-header-number"><a name="-span-style-font-size-1em-line-height-1-5385-configure-logstash-span-" id="-span-style-font-size-1em-line-height-1-5385-configure-logstash-span-" class="toc-bookmark" rel="bookmark" title="Configure Logstash"></a><span class="toc-number">6.  </span> <span style="font-size: 1em; line-height: 1.5385;">Configure Logstash</span></h2>
+<p>Now it get's more interesting. As said above we use separate logstash instances: a single file-to-redis instance on one of the hosts, and a bunch of indexer instances for each log type scaled across both hosts.</p>
+<h3>File-to-redis shipper instance</h3>
+<p><code>etc/file-to-redis.conf</code></p>
+<pre>
+input {
+  # server logs
+  file {
+    type =&gt; "weblogic"
+    tags =&gt; "weblogic"
+    path =&gt; [ "/data/logfiles/weblogic/*/*/weblogic.log" ]
+    codec =&gt; plain { charset =&gt; "ISO-8859-1" }
+  }
+  # application logs
+  file {
+    type =&gt; "application"
+    tags =&gt; "weblogic"
+    path =&gt; [ "/data/logfiles/weblogic/*/*/app1.log",
+              "/data/logfiles/weblogic/*/*/app2.log",
+              "/data/logfiles/weblogic/*/*/app3.log",
+              "/data/logfiles/weblogic/*/*/app4.log" ]
+    codec =&gt; plain { charset =&gt; "ISO-8859-1" }
+  }                                                                                                                                                           
+}
+
+filter {
+  multiline {
+    type =&gt; "weblogic"
+    pattern =&gt; "^####"
+    negate =&gt; true
+    what =&gt; "previous"
+  }
+  multiline {
+    type =&gt; "application"
+    # this will work until Dec 31st 2099, so..
+    pattern =&gt; "^20"
+    negate =&gt; true
+    what =&gt; "previous"
+  }
+}
+
+output {
+  redis {
+    host =&gt; ["phes01", "phes02"]
+    data_type =&gt; "list"
+    key =&gt; "logstash-%{type}"
+  }
+}</pre><p><strong>Important note about the <em>file input</em></strong>: each file{} input runs in a separate thread. This means: if one of the applications goes totally nuts <em>it will block</em> the input from other logfiles. I recommend to use separate file{} input definitions for main environments (dev, ua, prod) and maybe also for the applications, so each has its own thread and cannot block others if it starts vomitting exceptions to the logfile.</p>
+<p><strong>Important note about the <em>multiline filter</em></strong>: First, we use the filter, not the codec, because it simplifies the config a bit when using greater number of file inputs. The second thing to note is, that the multiline filter has two issues:</p>
+<ul><li>By design, a multiline event can only be created when the next event is coming in (it matches the pattern and holds up lines, until it matches the pattern the next time). So if the application logs that it's about to start a very long running task for example, you will not see that message in Kibana (yet).</li>
+<li>The last line of every logfile is omitted for the same reason, though in that EOF case logstash could actually finalize the event and pass it on. Could be considered a bug, the devs are aware of this.</li>
+</ul><p>If that's a problem for you, you're better off using something like a logstash log4j input in server mode and log4j SocketAppenders in the application, or other techniques that do not rely on multiline filtering.</p>
+<h3>Redis-to-ES indexer instances</h3>
+<p>This is where all the magic happens. For Weblogic we need to define some grok patterns so logstash knows what to look for. Logstash comes with <a href="https://github.com/logstash/logstash/blob/master/patterns/grok-patterns&amp;bvm=bv.60799247,d.bGQ">a set of pre-defined patterns</a> which are very useful to build up on. We do have a messy mixture of log formats across the applications, so we use multiple patterns trying to match the more detailed ones first. Actually our list is longer, and below is just an excerpt. I prefer to use a list of patterns over using one single complex pattern, as that's easier to debug if developers change the log pattern without notice and suddenly things don't match (this does happen, quite regularly).</p>
+<p><code>patterns/weblogic-patterns</code></p>
+<pre>
+WLS_DATESTAMP %{YEAR}[/-]%{MONTHNUM}[/-]%{MONTHDAY}[- ]%{TIME}
+
+# server logs
+WLS_SRV_LOG_FMT1 ####&lt;%{DATA:wls_timestamp}&gt; &lt;%{WORD:severity}&gt; &lt;%{DATA:wls_topic}&gt; &lt;%{HOST:hostname}&gt; &lt;(%{WORD:server})?&gt;( &lt;(\[%{DATA:thread_status}\] )?ExecuteThread: '%{INT:thread_nr}' for queue: '%{DATA:thread_queue}'&gt;)? %{GREEDYDATA:logmessage}
+WLS_SRV_LOG_FMT2 ####&lt;%{DATA:wls_timestamp}&gt; &lt;%{WORD:severity}&gt; &lt;%{DATA:wls_topic}&gt; &lt;%{HOST:hostname}&gt; &lt;(%{WORD:server})?&gt; %{GREEDYDATA:logmessage}
+WLS_SRV_LOG %{WLS_SRV_LOG_FMT1}|%{WLS_SRV_LOG_FMT2}
+
+# application logs
+WLS_APP_LOG_FMT1 %{WLS_DATESTAMP:timestamp}(?: %{NUMBER:some_id})? %{WORD:severity} ( )?\[%{JAVACLASS:java_class}\](:)?( \(\[%{DATA:thread_status}\] ExecuteThread: '%{INT:thread_nr}' for queue: '%{DATA:thread_queue}':\))? %{DATA:logmessage}$
+WLS_APP_LOG_FMT2 %{WLS_DATESTAMP:timestamp}(?: %{NUMBER:some_id})? %{WORD:severity} ( )?\[%{JAVACLASS:java_class}\](:)? %{GREEDYDATA:logmessage}
+WLS_APP_LOG %{WLS_APP_LOG_FMT1}|%{WLS_APP_LOG_FMT1}
+
+# specific stuff
+WLS_SERVERS server[0-9]{2}
+WLS_APPS a|list|of|valid|application|names
+WLS_ENVS dev[0-9]{2}|int|qsu|au[1-5]|prosi|prod</pre><p>The "specific stuff" in there is used to extract fields from the file paths, see below.</p>
+<p>Then the configuration for the weblogic server log indexer(s):</p>
+<p><code>etc/weblogic-server.conf</code></p>
+<pre>
+input {                                                                                                                                                          
+  redis {                                                                                                                                                        
+    type =&gt; "weblogic"                                                                                                                                           
+    host =&gt; "phes01"                                                                                                                                            
+    data_type =&gt; "list"
+    key =&gt; "logstash-weblogic"
+  }
+  redis {
+    type =&gt; "weblogic"
+    host =&gt; "phes02"
+    data_type =&gt; "list"
+    key =&gt; "logstash-weblogic"
+  }
+}
+
+filter {
+  grok {
+    # extract environment name from file path
+    patterns_dir =&gt; "./patterns"
+    match =&gt; ["path", "%{WLS_ENVS:env}"]
+  }
+  grok {
+    # grok the cr*p out of it
+    patterns_dir =&gt; "./patterns"
+    match =&gt; ["message", "%{WLS_SRV_LOG}"]
+    # set "app" field to "server" so we can search weblogic.log using app:server 
+    add_field =&gt; ["app", "server"]
+  }
+  date {
+    # localization mess...
+    match =&gt; ["wls_timestamp", "dd.MM.yyyy HH:mm 'Uhr' 'MEZ'", "dd.MM.yyyy HH:mm 'Uhr' 'MESZ'", "dd.MM.yyyy HH:mm:ss.SSS Z"]
+  }
+  #
+  # implement stuck thread alerting for production env
+  #
+  grep {
+    # check if thread is stuck (by BEA-000337 code)
+    add_tag =&gt; ["stuck_thread"]
+    match =&gt; [ "logmessage", "BEA-000337" ]
+    drop =&gt; false
+  }
+  grep {
+    # check if thread is unstuck (by BEA-000339 code)
+    add_tag =&gt; ["unstuck_thread"]
+    match =&gt; [ "logmessage", "BEA-000339" ]
+    drop =&gt; false
+  }
+  if ("stuck_thread" in [tags]){
+    mutate {
+      replace =&gt; ["thread_status", "STUCK" ]
+    }
+  }
+  if ("unstuck_thread" in [tags]){
+    mutate {
+      replace =&gt; ["thread_status", "UNSTUCK" ]
+    }
+  }
+
+  mutate {
+    # cosmetic unification
+    uppercase =&gt; [ "severity" ]
+  }
+}
+
+output {
+  elasticsearch_http {
+    host =&gt; "phes02"
+    index =&gt; "logstash-weblogic-%{+YYYY.MM.dd}"
+    manage_template =&gt; false
+  }
+  
+  # alert on stuck threads in production via mail
+  if [env] == "prod" and ([thread_status] == "STUCK" or [thread_status] == "UNSTUCK") {
+   # exclude the worker nodes as long running stuff is their job
+   if !([server] == "server09" or [server] == "server10") {
+    email {
+      via =&gt; "smtp"
+      options =&gt; [ "smtpIporHost", "mail.domain.com" ]
+      from =&gt; "logstash-alerts@domain.com"
+      to =&gt; "weblogic-admins@domain.com"
+      subject =&gt; "[logstash-alert] %{thread_status} thread in Prod, %{server}"
+      body =&gt; "%{message}"
+    }
+   }
+  }
+}</pre><p>It uses two redis inputs. That's because the redis output plugin in the shipper connects to the first available redis server on startup (or random, didn't check), and only fails over if that redis instance dies. So it requires two inputs to always check both redis instances for new messages.</p>
+<p><span style="font-size: 1em; line-height: 1.5385;">Now the config for the application log indexer(s)</span></p>
+<p><code>etc/weblogic-application.conf</code></p>
+<pre>
+input {
+  redis {
+    type =&gt; "application"
+    host =&gt; "phes01"
+    data_type =&gt; "list"
+    key =&gt; "logstash-application"
+  }
+  redis {
+    type =&gt; "application"
+    host =&gt; "phes02"
+    data_type =&gt; "list"
+    key =&gt; "logstash-application"
+  }
+}
+
+filter {
+  grok {
+    # extract environment (dev, qsu, prod etc) from file path
+    patterns_dir =&gt; "./patterns"
+    match =&gt; ["path", "%{WLS_ENVS:env}"]
+  }
+  grok {
+    # extract app name from file path
+    patterns_dir =&gt; "./patterns"
+    match =&gt; ["path", "%{WLS_APPS:app}"]
+  }
+  grok {
+    # extract server node number from file path
+    patterns_dir =&gt; "./patterns"
+    match =&gt; ["path", "%{WLS_SERVERS:server}"]
+  }
+  grok {
+    # parse!
+    patterns_dir =&gt; "./patterns"
+    match =&gt; ["message", "%{WLS_APP_LOG}"]
+  }
+  date {
+    match =&gt; ["timestamp", "YYYY-MM-dd HH:mm:ss,SSS"]
+  }
+
+  mutate {
+    uppercase =&gt; [ "severity" ]
+  }
+}
+
+output {
+  elasticsearch_http {
+    host =&gt; "phes02"
+    index =&gt; "logstash-weblogic-%{+YYYY.MM.dd}"
+    manage_template =&gt; true
+    template =&gt; "/opt/logstash/es-templates/logstash-weblogic.json"
+    template_name =&gt; "logstash-weblogic"
+    template_overwrite =&gt; true
+  }
+}</pre><p>We need to adopt the default ES template to match our index naming scheme:</p>
+<p><code>es-templates/logstash-weblogic.json</code></p>
+<pre>
+{
+  "template" : "logstash-weblogic*",
+  "settings" : {
+    "number_of_shards" : 2,
+    "index.refresh_interval" : "5s",
+    "analysis" : {
+      "analyzer" : {
+        "default" : {
+          "type" : "standard",
+          "stopwords" : "_none_"
+        }
+      }
+    }
+  },
+  "mappings" : {
+    "_default_" : {
+       "_all" : {"enabled" : true},
+       "dynamic_templates" : [ {
+         "string_fields" : {
+           "match" : "*",
+           "match_mapping_type" : "string",
+           "mapping" : {
+             "type" : "multi_field",
+               "fields" : {
+                 "{name}" : {"type": "string", "index" : "analyzed", "omit_norms" : true },
+                 "raw" : {"type": "string", "index" : "not_analyzed", "ignore_above" : 256}
+               }
+           }
+         }
+       } ],
+       "properties" : {
+         "@version": { "type": "string", "index": "not_analyzed" }
+       }
+    }
+  }
+}</pre><div class="toc-filter-back-to-top"><a href="#top">Back to top</a></div><h2 class="toc-header toc-header-number"><a name="configure-kibana" id="configure-kibana" class="toc-bookmark" rel="bookmark" title="Configure Kibana"></a><span class="toc-number">7.  </span> Configure Kibana</h2>
+<p>Kibana is plain javascript with an index.html file. Just unpack it somewhere in your DocumentRoot or create a virtual host for it. Configuring Apache/Nginx goes beyond the scope of this guide.</p>
+<p>Just one note about security: Kibana stores its dashboard configuration in Elasticsearch. You may want to protect it from accidently being overwritten by using a proxy with basic or LDAP auth in place. See <a href="https://github.com/elasticsearch/kibana/tree/master/sample">https://github.com/elasticsearch/kibana/tree/master/sample</a> for some virtual host examples that implement this.</p>
+<div class="toc-filter-back-to-top"><a href="#top">Back to top</a></div><h2 class="toc-header toc-header-number"><a name="start-the-show" id="start-the-show" class="toc-bookmark" rel="bookmark" title="Start the show"></a><span class="toc-number">8.  </span> Start the show</h2>
+<p>First, start one of the elasticsearch nodes using the provided init script and wait unitl it's up and running. Then start the second one and check /var/log/elasticsearch/&lt;clustername&gt;.log if they correctly connected to each other, one should be picked as master, the other one as failback master. Also check <a href="http://phes01:9200/_cluster/health" rel="nofollow">http://phes01:9200/_cluster/health</a> on one ot both of the nodes. You should see 2 nodes total, 2 data nodes, status: green.</p>
+<p>Start the redis servers using the init script.</p>
+<p>Start logstash. We use some simple custom script for this:</p>
+<pre>
+#!/bin/bash
+
+JAVA_HOME="/usr"
+JAVA_OPTS="-Xms128m -Xmx1024m -XX:PermSize=128m -XX:MaxPermSize=256m"
+BASEDIR="/opt/logstash"
+
+LOGTYPE=$1
+
+if [ !  -r "${BASEDIR}/etc/${LOGTYPE}.conf" ]; then
+   echo "ERROR: no config for ${LOGTYPE} exists in ${BASEDIR}/etc."
+   exit 1
+fi
+
+cd ${BASEDIR}
+test -d log || mkdir log
+
+export LANG=en_US.UTF-8
+
+$JAVA_HOME/bin/java ${JAVA_OPTS} -XX:OnOutOfMemoryError="kill -9 %p" -jar logstash.jar agent -f etc/${LOGTYPE}.conf --log log/logstash-${LOGTYPE}.log $2</pre><div class="toc-filter-back-to-top"><a href="#top">Back to top</a></div><h2 class="toc-header toc-header-number"><a name="housekeeping" id="housekeeping" class="toc-bookmark" rel="bookmark" title="Housekeeping"></a><span class="toc-number">9.  </span> Housekeeping</h2>
+<p>Housekeeping here means: purge old indexes after some retention time (e.g. after 60 days) and optimize indexes that don't see new data (e.g. "yesterday's" logstash indexes). This reduces disk space usage and the resource demands of Elasticsearch. There is a tool which does all this in a very comfortable and configurable fashion: <a href="https://github.com/elasticsearch/curator">curator</a>. A good read about it can be found on <a href="http://www.elasticsearch.org/blog/curator-tending-your-time-series-indices/">http://www.elasticsearch.org/blog/curator-tending-your-time-series-indices/</a>.</p>
+<p> </p>
+<div class="toc-filter-back-to-top last"><a href="#top">Back to top</a></div></div></div></div><ul class="links inline"><li class="blog_usernames_blog first"><a href="/blogs/tom" class="btn btn-mini" title="Read tom&#039;s latest blog entries."><i class="icon icon-user-1"></i> tom's blog</a></li>
+<li class="comment-add last"><a href="/comment/reply/115#comment-form" class="btn btn-small" title="Share your thoughts and opinions related to this posting."><i class="icon icon-comment-1"></i> Add new comment</a></li>
+</ul><div class="field field-name-taxonomy-vocabulary-3 field-type-taxonomy-term-reference field-label-inline clearfix"><div class="field-label">Tags:&nbsp;</div><div class="field-items"><div class="field-item even"><a href="/tags/weblogic">Weblogic</a></div><div class="field-item odd"><a href="/tags/elasticsearch">elasticsearch</a></div><div class="field-item even"><a href="/tags/kibana">kibana</a></div><div class="field-item odd"><a href="/tags/splunk-alternative">splunk alternative</a></div></div></div>  </div>
+    </div>  </body>
+</html>

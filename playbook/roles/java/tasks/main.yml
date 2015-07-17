@@ -1,0 +1,6 @@
+---
+- stat: path="{{ java_unarchive_path }}"
+  register: java_dir
+
+- include: java.yml
+  when: not java_dir.stat.exists

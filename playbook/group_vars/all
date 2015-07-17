@@ -1,0 +1,25 @@
+---
+# Variables here are applicable to all host groups
+
+software_dir: /software
+
+elk_base_path: /opt/elk
+elk_user: vagrant
+elk_group: vagrant
+
+java_home: /usr/java/default
+java_file: "{{ software_dir }}/jdk-7u80-linux-x64.gz"
+java_base_path: "/usr/java"
+java_unarchive_path: /usr/java/jdk1.7.0_80
+
+elastic_version: 1.6.0
+elastic_file: "{{ software_dir }}/elasticsearch-{{ elastic_version }}.zip"
+elastic_home: "{{ elk_base_path }}/elasticsearch-{{ elastic_version }}"
+
+kibana_version: 4.1.1
+kibana_file: "{{ software_dir }}/kibana-{{ kibana_version }}-linux-x64.tar.gz"
+kibana_home: "{{ elk_base_path }}/kibana-{{ kibana_version }}-linux-x64"
+
+logstash_version: 1.5.2
+logstash_file: "{{ software_dir }}/logstash-{{ logstash_version }}.zip"
+logstash_home: "{{ elk_base_path }}/logstash-{{ logstash_version }}"
