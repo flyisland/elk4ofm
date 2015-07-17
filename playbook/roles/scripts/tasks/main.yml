@@ -1,0 +1,17 @@
+- name: create scripts to start/stop elk stack
+  template:
+    src: "{{ item.t }}"
+    dest: "/home/{{ elk_user }}/{{ item.s }}"
+    owner: "{{ elk_user }}"
+    group: "{{ elk_group }}"
+  with_items:
+    - { t: "startELK.sh.j2",  s: "startELK.sh"}
+    - { t: "stopELK.sh.j2",  s: "stopELK.sh"}
+
+- name: chmod scripts to allow execute for user and group
+  file:
+    path: "/home/{{ elk_user }}/{{ item }}"
+    mode: "ug+x"
+  with_items:
+    - "startELK.sh"
+    - "stopELK.sh"

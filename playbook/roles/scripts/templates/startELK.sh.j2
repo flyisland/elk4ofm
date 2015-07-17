@@ -1,0 +1,7 @@
+#! /bin/sh -x
+
+/home/{{ elk_user }}/stopELK.sh
+
+JAVA_HOME={{ java_home }}
+cd {{ elastic_home }}
+nohup ./bin/elasticsearch > nohup.txt 2>&1 &

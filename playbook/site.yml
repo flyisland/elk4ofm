@@ -8,3 +8,4 @@
     - elasticsearch
     - kibana
     - logstash
+    - scripts
