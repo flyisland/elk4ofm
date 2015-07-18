@@ -1,0 +1,31 @@
+input {
+  # server logs
+  file {
+    type => "weblogic"
+    path => [ "/ramdisk/logs/weblogic/*.log" ]
+    start_position => beginning
+    codec => multiline {
+      pattern => "^####"
+      negate => true
+      what => "previous"
+    }
+  }
+}
+
+filter {
+  grok {
+    patterns_dir => "{{ logstash_pattern_path }}"
+    match => ["message", "%{WLS_SRV_LOG}"]
+  }
+  date {
+    # localization mess...
+    match => ["wls_timestamp", "dd.MM.yyyy HH:mm 'Uhr' 'MEZ'", "dd.MM.yyyy HH:mm 'Uhr' 'MESZ'", "dd.MM.yyyy HH:mm:ss.SSS Z"]
+  }
+}
+
+output {
+  elasticsearch {
+    host => localhost
+    cluster =>  {{ elastic_cluster }}
+  }
+}

@@ -4,3 +4,24 @@
 
 - include: logstash.yml
   when: not logstash_home_dir.stat.exists
+
+- name: create dir for pattern files
+  file:
+    path: "{{ logstash_pattern_path }}"
+    state: directory
+    owner: "{{ elk_user }}"
+    group: "{{ elk_group }}"
+
+- name: copy pattern files
+  copy:
+    src: "weblogic-patterns"
+    dest: "{{ logstash_pattern_path }}/weblogic-patterns"
+    owner: "{{ elk_user }}"
+    group: "{{ elk_group }}"
+
+- name: create logstash configure file
+  template:
+    src: "logstash-ofm.conf.j2"
+    dest: "/home/{{ elk_user }}/logstash-ofm.conf"
+    owner: "{{ elk_user }}"
+    group: "{{ elk_group }}"

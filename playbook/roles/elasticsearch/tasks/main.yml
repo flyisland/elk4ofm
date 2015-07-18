@@ -9,4 +9,4 @@
   lineinfile:
     dest: "{{ elastic_home }}/config/elasticsearch.yml"
     regexp: "^#?cluster.name"
-    line: "cluster.name: elk4ofm"
+    line: "cluster.name: {{ elastic_cluster }}"

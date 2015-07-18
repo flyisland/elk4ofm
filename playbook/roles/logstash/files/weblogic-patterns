@@ -1,0 +1,2 @@
+# server logs
+WLS_SRV_LOG ####<%{DATA:wlsTimestamp}> <%{WORD:severity}> <%{DATA:subSystem}> <%{HOSTNAME:machineName}> <%{HOSTNAME:serverName}?> <%{DATA:threadID}?> <%{DATA:userID}?> <%{DATA:transactionID}?> <%{DATA:diagnosticID}?> <%{INT:rawTime}> <%{DATA:msgID}> <%{GREEDYDATA:msgText}>

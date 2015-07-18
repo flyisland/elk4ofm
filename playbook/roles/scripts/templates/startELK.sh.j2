@@ -5,3 +5,6 @@
 JAVA_HOME={{ java_home }}
 cd {{ elastic_home }}
 nohup ./bin/elasticsearch > nohup.txt 2>&1 &
+
+cd {{ kibana_home}}
+nohup ./bin/kibana > nohup.txt 2>&1 &

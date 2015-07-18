@@ -1,3 +1,11 @@
+- name: make sure elk_base_path is owned by elk_user
+  file:
+    path: "{{ elk_base_path }}"
+    state: directory
+    owner: "{{ elk_user }}"
+    group: "{{ elk_group }}"
+    recurse: yes
+
 - name: create scripts to start/stop elk stack
   template:
     src: "{{ item.t }}"
