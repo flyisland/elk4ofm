@@ -18,8 +18,7 @@ filter {
     match => ["message", "%{WLS_SRV_LOG}"]
   }
   date {
-    # localization mess...
-    match => ["wls_timestamp", "dd.MM.yyyy HH:mm 'Uhr' 'MEZ'", "dd.MM.yyyy HH:mm 'Uhr' 'MESZ'", "dd.MM.yyyy HH:mm:ss.SSS Z"]
+    match => ["wlsTimestamp", "MMM d, yyyy H:mm:ss aa zzz"]
   }
 }
 
