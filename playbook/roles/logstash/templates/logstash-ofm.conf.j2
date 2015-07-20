@@ -2,7 +2,8 @@ input {
   # server logs
   file {
     type => "weblogic"
-    path => [ "/ramdisk/logs/weblogic/*.log" ]
+    # /ramdisk/logs/weblogic/HOSTIP/*.log
+    path => [ "/ramdisk/logs/weblogic/*/*.log" ]
     start_position => beginning
     codec => multiline {
       pattern => "^####"
@@ -13,18 +14,37 @@ input {
 }
 
 filter {
+  if [type]=="weblogic" {
+    grok {
+      patterns_dir => "{{ logstash_pattern_path }}"
+      match => ["message", "%{WLS_SRV_LOG}"]
+    }
+    date {
+      match => ["wlsTimestamp", "MMM d, yyyy H:mm:ss aa zzz"]
+    }
+  }
   grok {
     patterns_dir => "{{ logstash_pattern_path }}"
-    match => ["message", "%{WLS_SRV_LOG}"]
-  }
-  date {
-    match => ["wlsTimestamp", "MMM d, yyyy H:mm:ss aa zzz"]
+    match => ["path", "%{IPV4:hostIp}"]
   }
 }
 
 output {
-  elasticsearch {
-    host => localhost
-    cluster =>  {{ elastic_cluster }}
+  if [type]=="weblogic" {
+    elasticsearch {
+      host => localhost
+      cluster =>  "{{ elastic_cluster }}"
+      index => "logstash-wls-%{+YYYY.MM.dd}"
+    }
+  } else if [type]=="tuxedo" {
+    elasticsearch {
+      host => localhost
+      cluster =>  "{{ elastic_cluster }}"
+      index => "logstash-tux-%{+YYYY.MM.dd}"
+    }
+  } else {
+    stdout {
+      codec => "json"
+    }
   }
 }
