@@ -1,0 +1,22 @@
+{
+  "template" : "logstash-wls*",
+  "mappings" : {
+    "weblogic" : {
+       "properties" : {
+         "wlsTimestamp": { "type": "string", "index": "not_analyzed" },
+         "severity": { "type": "string", "index": "not_analyzed" },
+         "subSystem": { "type": "string", "index": "not_analyzed" },
+         "machineName": { "type": "string", "index": "not_analyzed" },
+         "serverName": { "type": "string", "index": "not_analyzed" },
+         "threadID": { "type": "string", "index": "not_analyzed" },
+         "userID": { "type": "string", "index": "not_analyzed" },
+         "transactionID": { "type": "string", "index": "not_analyzed" },
+         "diagnosticID": { "type": "string", "index": "not_analyzed" },
+         "rawTime": { "type": "long", "index": "not_analyzed" },
+         "msgID": { "type": "string", "index": "not_analyzed" },
+         "msgText": { "type": "string", "index": "analyzed" },
+         "hostIp": { "type": "string", "index": "not_analyzed" }
+       }
+    }
+  }
+}

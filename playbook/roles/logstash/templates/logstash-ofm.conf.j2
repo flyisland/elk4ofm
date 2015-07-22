@@ -35,6 +35,8 @@ output {
       host => localhost
       cluster =>  "{{ elastic_cluster }}"
       index => "logstash-wls-%{+YYYY.MM.dd}"
+      template => "/home/{{ elk_user }}/logstash-wls.json"
+      template_name => "logstash-wls"
     }
   } else if [type]=="tuxedo" {
     elasticsearch {

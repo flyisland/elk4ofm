@@ -19,6 +19,13 @@
     owner: "{{ elk_user }}"
     group: "{{ elk_group }}"
 
+- name: copy template files
+  copy:
+    src: "logstash-wls.json"
+    dest: "/home/{{ elk_user }}/logstash-wls.json"
+    owner: "{{ elk_user }}"
+    group: "{{ elk_group }}"
+
 - name: create logstash configure file
   template:
     src: "logstash-ofm.conf.j2"

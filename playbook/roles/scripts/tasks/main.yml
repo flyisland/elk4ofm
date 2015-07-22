@@ -15,6 +15,7 @@
   with_items:
     - { t: "startELK.sh.j2",  s: "startELK.sh"}
     - { t: "stopELK.sh.j2",  s: "stopELK.sh"}
+    - { t: "startLogstash.sh.j2",  s: "startLogstash.sh"}
 
 - name: chmod scripts to allow execute for user and group
   file:
@@ -23,3 +24,4 @@
   with_items:
     - "startELK.sh"
     - "stopELK.sh"
+    - "startLogstash.sh"
