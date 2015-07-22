@@ -2,7 +2,7 @@
 
 /home/{{ elk_user }}/stopELK.sh
 
-JAVA_HOME={{ java_home }}
+export ES_HEAP_SIZE=1g
 cd {{ elastic_home }}
 nohup ./bin/elasticsearch > nohup.txt 2>&1 &
 

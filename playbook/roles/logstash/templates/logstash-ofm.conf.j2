@@ -35,6 +35,7 @@ output {
       host => localhost
       cluster =>  "{{ elastic_cluster }}"
       index => "logstash-wls-%{+YYYY.MM.dd}"
+      flush_size => 500
       template => "/home/{{ elk_user }}/logstash-wls.json"
       template_name => "logstash-wls"
     }
