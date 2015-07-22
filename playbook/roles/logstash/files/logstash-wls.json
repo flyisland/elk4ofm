@@ -1,5 +1,12 @@
 {
   "template" : "logstash-wls*",
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "nonword": { "type": "pattern", "pattern": "[^\\w]+" }
+      }
+    }
+  },
   "mappings" : {
     "weblogic" : {
        "properties" : {
@@ -14,7 +21,7 @@
          "diagnosticID": { "type": "string", "index": "not_analyzed" },
          "rawTime": { "type": "long", "index": "not_analyzed" },
          "msgID": { "type": "string", "index": "not_analyzed" },
-         "msgText": { "type": "string", "index": "analyzed" },
+         "msgText": { "type": "string", "index": "analyzed", "analyzer": "nonword" },
          "hostIp": { "type": "string", "index": "not_analyzed" }
        }
     }
