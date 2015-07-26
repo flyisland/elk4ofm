@@ -31,4 +31,4 @@
       lineinfile:
         dest: "/etc/ansible/ansible.cfg"
         regexp: "^callback_plugins"
-        line: "callback_plugins = /usr/share/ansible_plugins/callback_plugins:/vagrant/playbooks/plugins/callback_plugins/"
+        line: "callback_plugins = /usr/share/ansible_plugins/callback_plugins:/vagrant/playbook/plugins/callback_plugins/"
