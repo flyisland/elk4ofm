@@ -17,6 +17,16 @@
     - { t: "stopELK.sh.j2",  s: "stopELK.sh"}
     - { t: "startLogstash.sh.j2",  s: "startLogstash.sh"}
 
+- name: copy script files
+  copy:
+    src: "{{ item }}"
+    dest: "/home/{{ elk_user }}/{{ item }}"
+    owner: "{{ elk_user }}"
+    group: "{{ elk_group }}"
+  with_items:
+    - "deleteLogstashIndices.sh"
+    - "listIndices.sh"
+
 - name: chmod scripts to allow execute for user and group
   file:
     path: "/home/{{ elk_user }}/{{ item }}"
@@ -25,3 +35,5 @@
     - "startELK.sh"
     - "stopELK.sh"
     - "startLogstash.sh"
+    - "deleteLogstashIndices.sh"
+    - "listIndices.sh"
