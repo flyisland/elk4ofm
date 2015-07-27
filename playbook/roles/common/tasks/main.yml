@@ -9,3 +9,15 @@
     group: "{{ elk_group }}"
     mode: 0770
   # when: not elk_base_path_check.stat.exists
+
+- name: Configuring Resource Limits
+  lineinfile:
+    dest: /etc/security/limits.conf
+    state: present
+    line: "{{ item }}"
+  with_items:
+    - "{{ elk_user }} soft nproc 16384"
+    - "{{ elk_user }} hard nproc 16384"
+    - "{{ elk_user }} soft nofile 5120"
+    - "{{ elk_user }} hard nofile 65536"
+    - "{{ elk_user }} soft stack 10240"
