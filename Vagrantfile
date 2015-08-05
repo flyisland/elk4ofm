@@ -15,6 +15,9 @@ Vagrant.configure(2) do |config|
     elk.vm.synced_folder "E:/Temp/Install", "/software"
 
     elk.vm.network :private_network, ip: "10.10.10.10"
+    elk.vm.provider :virtualbox do |vb|
+      vb.memory = 4 * 1024
+    end
   end
 
 end

@@ -2,7 +2,7 @@
 
 /home/{{ elk_user }}/stopELK.sh
 
-export ES_HEAP_SIZE=1g
+export ES_HEAP_SIZE=2g
 cd {{ elastic_home }}
 nohup ./bin/elasticsearch > nohup.txt 2>&1 &
 
