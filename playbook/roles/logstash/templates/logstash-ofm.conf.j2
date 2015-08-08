@@ -19,8 +19,11 @@ filter {
       patterns_dir => "{{ logstash_pattern_path }}"
       match => ["message", "%{WLS_SRV_LOG}"]
     }
+    mutate {
+      gsub => ["wlsTimestamp", "CST$", "+0800"]
+    }
     date {
-      match => ["wlsTimestamp", "MMM d, yyyy H:mm:ss aa zzz"]
+      match => ["wlsTimestamp", "MMM d, yyyy h:mm:ss a Z"]
     }
   }
   grok {
