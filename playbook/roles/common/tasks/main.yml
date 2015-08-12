@@ -1,6 +1,3 @@
-- stat: path="{{ elk_base_path }}"
-  register: elk_base_path_check
-
 - name:  create base dir for ELK
   file:
     path: "{{ elk_base_path }}"
@@ -8,7 +5,6 @@
     owner: "{{ elk_user }}"
     group: "{{ elk_group }}"
     mode: 0770
-  # when: not elk_base_path_check.stat.exists
 
 - name: Configuring Resource Limits
   lineinfile:
