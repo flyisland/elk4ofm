@@ -13,8 +13,9 @@
     owner: "{{ elk_user }}"
     group: "{{ elk_group }}"
   with_items:
-    - { t: "startELK.sh.j2",  s: "startELK.sh"}
-    - { t: "stopELK.sh.j2",  s: "stopELK.sh"}
+    - { t: "startElasticSearch.sh.j2",  s: "startElasticSearch.sh"}
+    - { t: "stopElasticSearch.sh.j2",  s: "stopElasticSearch.sh"}
+    - { t: "startKibana.sh.j2",  s: "startKibana.sh"}
     - { t: "startLogstash.sh.j2",  s: "startLogstash.sh"}
 
 - name: copy script files
@@ -32,8 +33,9 @@
     path: "/home/{{ elk_user }}/{{ item }}"
     mode: "ug+x"
   with_items:
-    - "startELK.sh"
-    - "stopELK.sh"
+    - "startElasticSearch.sh"
+    - "stopElasticSearch.sh"
+    - "startKibana.sh"
     - "startLogstash.sh"
     - "deleteLogstashIndices.sh"
     - "listIndices.sh"
