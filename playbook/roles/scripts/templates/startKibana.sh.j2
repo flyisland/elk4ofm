@@ -1,0 +1,4 @@
+#! /bin/sh -x
+
+nohup {{ kibana_home}}/bin/kibana > {{ kibana_home}}/nohup.txt 2>&1 &
+tail -f {{ kibana_home}}/nohup.txt
