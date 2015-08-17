@@ -3,7 +3,7 @@ input {
   file {
     type => "weblogic"
     # /ramdisk/logs/weblogic/HOSTIP/*.log*
-    path => [ "/ramdisk/logs/weblogic/*/*.log", "/ramdisk/logs/weblogic/*/*.log*" ]
+    path => [ "/ramdisk/logs/weblogic/*.log", "/ramdisk/logs/weblogic/*/*.log", "/ramdisk/logs/weblogic/*/*.log*" ]
     start_position => beginning
     codec => multiline {
       pattern => "^####"
